@@ -114,6 +114,7 @@ function getTrack($info)
     return $sound;
 }
 
+//curl封装函数来自互联网
 function cUrl($url, $header = null, $data = null)
 {
     //初始化curl
