@@ -5,26 +5,46 @@
  * Date: 2017/9/10
  * Time: 12:23
  */
-
-output("XI MA LA YA Track Downloader");
-
+error_reporting(false);
+$copyright = "
+ -------------------------------------------------
+>                XMLY AUDIOS TOOL                 <
+>                VERSION BETA 1.1                 <
+>                AUTHOR: CKYLINMC                 <
+>                OPENSOURCE:GPLv3                 <
+> PROJECT: https://github.com/Cansll/XiMaLaYa-Get <
+ -------------------------------------------------
+";
+$logo = " _____ _  __     _ _       __  __  _____ 
+/ ____| |/ /    | (_)     |  \/  |/ ____|
+| |    | ' /_   _| |_ _ __ | \  / | |     
+| |    |  <| | | | | | '_ \| |\/| | |     
+| |____| . \ |_| | | | | | | |  | | |____ 
+\_____|_|\_\__, |_|_|_| |_|_|  |_|\_____|
+            __/ |                        
+           |___/                         ";
+output($copyright."\n\n".$logo);
+//init config
+output();
+readConfig();
+readDict();
 //UI MODE
+output("\n\n[*] 欢迎使用喜马拉雅FM音频下载工具！");
 while (true) {
-    output("\n");
-    $res = ask("Enter a Track URL: ");
+    output("\n\n>[ 新的下载任务 ]----------------------\n");
+    $res = ask("[?] 输入一个音频链接: ");
     if (empty($res)) {
-        output("[URL not vaild] Please type a FULL URL!");
+        output("[!] 请输入一个链接！!");
         continue;
     }
     if ($res == "exit") {
-        output("\n Exited.");
+        output("\n[!] 退出.");
         break;
     }
     $urlinfos = parse_url($res);
     $track = getTrack($urlinfos);
     if ($track === false) continue;
-    $track = str_replace("/", "", $track);
-    output("\nTrack ID: $track \nFetching infos...");
+    output("\n[+] Track ID: $track \n[*] 正在获取信息...");
     $api = "http://www.ximalaya.com/tracks/$track.json";
 //    $httpinfo;
 //    $res = http_get($api, $httpinfo);
@@ -35,61 +55,70 @@ while (true) {
     $r = cUrl($api);
 //    $r = json_decode($res);
     if (empty($r)) {
-        output("Parsing data failed.");
+        output("[!] 解析数据时出错.");
         continue;
     }
-    if ($r['id'] == $track) {
-        output("Track found:\n\n");
+    if (!isset($r['res'])) {
+        output("[+] 已经定位音频:\n\n");
         $down = $r['play_path'];
         $duration = $r['duration'] / 60;
-        $title = getT($r['title']);
-        $user = getT($r['nickname']);
-        $realtime = getT($r['formatted_created_at']);
-        $time = getT($r['time_until_now']);
-        $album = getT($r['album_title']);
-        $intro = getT($r['intro']);
-        output("USER: $user \nLENGHT: $duration min \nTITLE: $title \nALBUM: $album \nUPLOAD: $time / $realtime \nINTRO: $intro \nDOWNLOAD: $down");
-        $ran = rand(00001, 99999);
+        $title = t($r['title']);
+        $user = t($r['nickname']);
+        $realtime = t($r['formatted_created_at']);
+        $time = t($r['time_until_now']);
+        $album = t($r['album_title']);
+        $intro = t($r['intro']);
+        raw_output(t("上传用户:")." $user \n".t("音频长度: ")."$duration min \n".t("音频题目: ")."$title \n".t("所在专辑:")." $album \n".t("上传时间: ")."$time / $realtime \n".t("音频描述:")." $intro \n".t("音频链接:")." $down");
+
 //        $filename = str_replace(" ","","$user-$title-$time-$ran.m4a");
-        $filename = "$user-$title-$time-$ran.m4a";
-        output("\n\nDownloading...($filename)");
-        $path = str_replace("\\","\\\\",dirname(__FILE__)) . "\\\\audios\\\\";
+//        $filename = "$user-$title-$album-$time-$ran.m4a";
+        $filename = getFileName($r);
+        raw_output(t("\n\n[*] 准备下载...")."($filename)");
+        $path = dirname(__FILE__) . DIRECTORY_SEPARATOR . "audios" . DIRECTORY_SEPARATOR;
         $filepath = $path . $filename;
         @mkdir($path);
-        output("Output folder: $path");
+        raw_output(t("[+] 输出目录: ")."$path");
         $target = fopen($down, "rb");
         $newfile = '';
         if ($target) {
             $newfile = fopen($filepath, "wb");
             if ($newfile) {
-                output("Downloading...");
+                output("[*] 正在下载...");
                 while (!feof($target)) {
                     fwrite($newfile, fread($target, 1024 * 8), 1024 * 8);
                 }
-                output("File block got. Closing exist streams...");
+                output("[*] 文件传输完成，正在进行最后的操作...");
             } else {
                 //fclose($newfile);
-                output("File writing error. Can't open local file. Please check the permissions.($filepath)");
+                raw_output(t("[!] 文件写入时出错，无法打开本地文件，请检查权限.")."($filepath)");
                 fclose($target);
                 continue;
             }
         } else {
             //fclose($target);
-            output("File getting error. Can't open remote file. Please check the network.($down)");
+            output("[!] 远程文件查找出错，无法下载，请检查网络.($down)");
         }
         if ($target) fclose($target);
         if ($newfile) fclose($newfile);
-        output("\n\nFile success downloaded to $filepath\n\n");
+        raw_output(t("\n\n[+] 文件已经成功下载到 ")."$filepath");
+        output("文件大小: ".getSizeT($filepath)."\n");
         continue;
     } else {
-        output("Parsing data error.");
+        output("[!] 数据查询出错，检查输入的链接. ($res)");
         continue;
     }
 }
 
 function output($out)
 {
-    fwrite(STDOUT, "\n$out\n");
+    $out = t($out);
+    fwrite(STDOUT, "\n$out");
+}
+
+function raw_output($out)
+{
+    // $out = t($out);
+    fwrite(STDOUT, "\n$out");
 }
 
 function ask($out)
@@ -102,19 +131,18 @@ function getTrack($info)
 {
     if (empty($info)) return false;
     if ($info["host"] != "www.ximalaya.com") {
-        output("[URL not vaild] Please type a FULL URL!");
+        output("[!] 请输入完整链接!");
         return false;
     }
     $sound = stristr($info["path"], "/sound/");
     if ($sound === false) {
-        output("[URL not vaild] Please type a TRACK URL!");
+        output("[!] 请确保输入的是音频页面的链接!");
         return false;
     }
-    $sound = str_replace("/sound/", "", $sound);
+    $sound = str_replace("/", "", str_replace("/sound/", "", $sound));
     return $sound;
 }
 
-//curl封装函数来自互联网
 function cUrl($url, $header = null, $data = null)
 {
     //初始化curl
@@ -156,9 +184,90 @@ function cUrl($url, $header = null, $data = null)
         return $xml;
     }
 }
-function getT($t){
+function t($t){
 //    return $t;
     return iconv("UTF-8","GBK",$t);
 }
 
-output("\n\nPHP Scripts Stopped.\n\n");
+function getSizeT($file){
+    $fs = filesize($file);
+    if($fs===false) return "UNKNOW";
+    $size = round(($fs/1024)/1024,2)."MB";
+    return $size;
+}
+
+function readDict(){
+    $dict = dirname(__FILE__).DIRECTORY_SEPARATOR."dict.txt";
+    if(!file_exists($dict)) {
+        fclose(fopen($dict,"w"));
+        output("[*] 字典文件创建成功!");
+    }
+    $lines = file($dict);//str_replace(PHP_EOL,"",file($config));
+    $dtdata = array();
+    foreach($lines as $line){
+        if(empty($line)) continue;
+        $result = explode("=",str_replace(PHP_EOL,"",$line));
+        $dtdata[$result[0]] = $result[1];
+    }
+    return $dtdata;
+}
+
+function readConfig(){
+    $config = dirname(__FILE__).DIRECTORY_SEPARATOR."options.txt";
+    if(!file_exists($config)) {
+        $f = fopen($config,"w");
+        fwrite($f,"nameformat=%name-%title-%album-%time-%ran".PHP_EOL."autoConvert=false".PHP_EOL);
+        fclose($f);
+        output("[*] 配置文件创建成功!");
+        output("[*] 文件名可用参数：\n\n\t%name\t\t真实姓名(无对应时输出用户名)\n\t%user\t\t用户名\n\t%duration\t音频长度(秒)\n\t%time\t\t中文相对时间\n\t%album\t\t专辑名\n\t%realtime\t上传日期\n\t%title\t\t音频标题\n\t%ran\t\t随机数\n");
+    }
+    $lines = file($config);//str_replace(PHP_EOL,"",file($config));
+    $cfg = array();
+    foreach($lines as $line){
+        if(empty($line)) continue;
+        $result = explode("=",str_replace(PHP_EOL,"",$line));
+        $cfg[$result[0]] = $result[1];
+    }
+    return $cfg;
+}
+
+function getName($name){
+    $dict = readDict();
+    if(array_key_exists($name,$dict)){
+        $fn = $dict[$name];
+        output("[*] 用户字典：'$name'已替换为'$fn'");
+        return $fn;
+    }
+    return $name;
+}
+
+function getFileName($r){
+    $rules = array(
+        "%name"=>getName(t($r['nickname'])),
+        "%user"=>t($r['nickname']),
+        "%duration"=>t($r['duration']),
+        "%time" => t($r['time_until_now']),
+        "%album" => t($r['album_title']),
+        "%realtime" => t($r['formatted_created_at']),
+        "%title" => t($r['title']),
+        "%ran" => rand(00001, 99999),
+    );
+    $cfg = readConfig();
+    $base = "%name-%title-%album-%time-%ran";
+    if(array_key_exists("nameformat",$cfg)){
+        $base = $cfg['nameformat'];
+    }
+    $filename = strtr($base,$rules).".m4a";
+    return $filename;
+}
+
+
+//$down = $r['play_path'];
+//$duration = $r['duration'] / 60;
+//$title = t($r['title']);
+//$user = t($r['nickname']);
+//$realtime = t($r['formatted_created_at']);
+//$time = t($r['time_until_now']);
+//$album = t($r['album_title']);
+//$intro = t($r['intro']);
+output("\n\n> 脚本结束运行.\n\n");
