@@ -6,10 +6,12 @@
  * Time: 12:23
  */
 error_reporting(false);
+const VE = 1.2;
+system("title XiMaLaYa Audios Tool Version ".VE);
 $copyright = "
  -------------------------------------------------
 >                XMLY AUDIOS TOOL                 <
->                VERSION BETA 1.1                 <
+>                VERSION BETA ".VE."                 <
 >                AUTHOR: CKYLINMC                 <
 >                OPENSOURCE:GPLv3                 <
 > PROJECT: https://github.com/Cansll/XiMaLaYa-Get <
@@ -25,8 +27,15 @@ $logo = " _____ _  __     _ _       __  __  _____
            |___/                         ";
 output($copyright."\n\n".$logo);
 //init config
-output();
-readConfig();
+output("");
+$c = readConfig();
+if(array_key_exists("cfgVersion",$c)){
+    if($c['cfgVersion']!=VE){
+        output("[!] 配置文件版本低，建议重新生成配置文件。(删除配置文件后重新运行程序即可。)");
+    }
+}else{
+    output("[!] 配置文件过期，建议重新生成配置文件。(删除配置文件后重新运行程序即可。)");
+}
 readDict();
 //UI MODE
 output("\n\n[*] 欢迎使用喜马拉雅FM音频下载工具！");
@@ -60,7 +69,7 @@ while (true) {
     }
     if (!isset($r['res'])) {
         output("[+] 已经定位音频:\n\n");
-        $down = $r['play_path'];
+        $downurl = $r['play_path'];
         $duration = $r['duration'] / 60;
         $title = t($r['title']);
         $user = t($r['nickname']);
@@ -68,11 +77,14 @@ while (true) {
         $time = t($r['time_until_now']);
         $album = t($r['album_title']);
         $intro = t($r['intro']);
-        raw_output(t("上传用户:")." $user \n".t("音频长度: ")."$duration min \n".t("音频题目: ")."$title \n".t("所在专辑:")." $album \n".t("上传时间: ")."$time / $realtime \n".t("音频描述:")." $intro \n".t("音频链接:")." $down");
+        raw_output(t("上传用户:")." $user \n".t("音频长度: ")."$duration min \n".t("音频题目: ")."$title \n".t("所在专辑:")." $album \n".t("上传时间: ")."$time / $realtime \n".t("音频描述:")." $intro \n".t("音频链接:")." $downurl");
 
 //        $filename = str_replace(" ","","$user-$title-$time-$ran.m4a");
 //        $filename = "$user-$title-$album-$time-$ran.m4a";
-        $filename = getFileName($r);
+//        $filename = getFileName($r);
+        $infos = getCFG($r);
+        $filename = $infos['file'];
+        $down = $infos['api'];
         raw_output(t("\n\n[*] 准备下载...")."($filename)");
         $path = dirname(__FILE__) . DIRECTORY_SEPARATOR . "audios" . DIRECTORY_SEPARATOR;
         $filepath = $path . $filename;
@@ -97,6 +109,7 @@ while (true) {
         } else {
             //fclose($target);
             output("[!] 远程文件查找出错，无法下载，请检查网络.($down)");
+            continue;
         }
         if ($target) fclose($target);
         if ($newfile) fclose($newfile);
@@ -130,7 +143,8 @@ function ask($out)
 function getTrack($info)
 {
     if (empty($info)) return false;
-    if ($info["host"] != "www.ximalaya.com") {
+    $allowhosts = array("m.ximalaya.com","www.ximalaya.com");
+    if (!in_array($info["host"],$allowhosts)) {
         output("[!] 请输入完整链接!");
         return false;
     }
@@ -216,19 +230,25 @@ function readConfig(){
     $config = dirname(__FILE__).DIRECTORY_SEPARATOR."options.txt";
     if(!file_exists($config)) {
         $f = fopen($config,"w");
-        fwrite($f,"nameformat=%name-%title-%album-%time-%ran".PHP_EOL."autoConvert=false".PHP_EOL);
+        fwrite($f,"cfgVersion=".VE.PHP_EOL."nameformat=%name-%title-%album-%time-%ran".PHP_EOL."source=web".PHP_EOL);
         fclose($f);
         output("[*] 配置文件创建成功!");
         output("[*] 文件名可用参数：\n\n\t%name\t\t真实姓名(无对应时输出用户名)\n\t%user\t\t用户名\n\t%duration\t音频长度(秒)\n\t%time\t\t中文相对时间\n\t%album\t\t专辑名\n\t%realtime\t上传日期\n\t%title\t\t音频标题\n\t%ran\t\t随机数\n");
+        output("[*] 音频源选项：\n\n\tweb\t\t网页在线试听源(格式m4a 体积小)\n\torgin\t\t主播后台下载源(格式mp3 体积很大)\n");
     }
     $lines = file($config);//str_replace(PHP_EOL,"",file($config));
     $cfg = array();
+    $default = array(
+        "cfgVersion"=>VE,
+        "nameformat"=>"%name-%title-%album-%time-%ran",
+        "source"=>"web"
+    );
     foreach($lines as $line){
         if(empty($line)) continue;
         $result = explode("=",str_replace(PHP_EOL,"",$line));
         $cfg[$result[0]] = $result[1];
     }
-    return $cfg;
+    return array_merge($default,$cfg);
 }
 
 function getName($name){
@@ -241,7 +261,7 @@ function getName($name){
     return $name;
 }
 
-function getFileName($r){
+function getCFG($r){
     $rules = array(
         "%name"=>getName(t($r['nickname'])),
         "%user"=>t($r['nickname']),
@@ -253,12 +273,31 @@ function getFileName($r){
         "%ran" => rand(00001, 99999),
     );
     $cfg = readConfig();
+    output("[*] 配置文件版本：".$cfg["cfgVersion"]);
     $base = "%name-%title-%album-%time-%ran";
     if(array_key_exists("nameformat",$cfg)){
         $base = $cfg['nameformat'];
     }
-    $filename = strtr($base,$rules).".m4a";
-    return $filename;
+    $down = false;
+    if(array_key_exists("source",$cfg)){
+        $format = $cfg['source'];
+    }
+    if(strtolower($format)=="web"){
+        $f = '.m4a';
+        $down = $r['play_path'];
+        output("[*] 音频源选定：网页在线试听源(格式m4a 体积小)");
+    }elseif(strtolower($format)=="orgin"){
+        $f = '.mp3';
+        $down = "http://www.ximalaya.com/center/voice/download?trackId=".$r['id'];
+        output("[*] 音频源选定：主播后台下载源(格式mp3 体积很大)\n[!] 请注意，mp3格式很容易下载失败，但是在浏览器打开可以正常下载。\n[*] MP3格式音频下载地址：\n$down\n");
+    }else{
+        $f = '.m4a';
+        $down = $r['play_path'];
+        output("[!] 配置文件中缺少'source'设置项，建议删除配置文件以重新生成。本次使用默认设置。");
+        output("[*] 音频源选定：网页在线试听源(格式m4a 体积小)");
+    }
+    $filename = strtr($base,$rules).$f;
+    return array('file'=>$filename,'api'=>$down);
 }
 
 
