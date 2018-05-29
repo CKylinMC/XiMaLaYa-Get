@@ -148,12 +148,20 @@ function getTrack($info)
         output("[!] 请输入完整链接!");
         return false;
     }
-    $sound = stristr($info["path"], "/sound/");
-    if ($sound === false) {
-        output("[!] 请确保输入的是音频页面的链接!");
-        return false;
-    }
-    $sound = str_replace("/", "", str_replace("/sound/", "", $sound));
+    //$sound = stristr($info["path"], "/sound/");
+    //if ($sound === false) {
+    //    output("[!] 请确保输入的是音频页面的链接!");
+    //    return false;
+    //}
+    //$sound = str_replace("/", "", str_replace("/sound/", "", $sound));
+	$pathparts = explode('/',$info["path"]);
+	if(count($pathparts)>5){
+		output("[!] 请确保输入的是音频页面的链接!");
+		return false;
+	}
+	if(count($pathparts)===5&&empty($pathparts[4])) array_pop($pathparts);
+	//$pathparts = array_shift($pathparts);
+	$sound = array_pop($pathparts);
     return $sound;
 }
 
