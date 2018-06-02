@@ -6,7 +6,7 @@
  * Time: 12:23
  */
 error_reporting(false);
-const VE = 1.2;
+const VE = 1.3;
 system("title XiMaLaYa Audios Tool Version ".VE);
 $copyright = "
  -------------------------------------------------
@@ -35,6 +35,13 @@ if(array_key_exists("cfgVersion",$c)){
     }
 }else{
     output("[!] 配置文件过期，建议重新生成配置文件。(删除配置文件后重新运行程序即可。)");
+}
+if(array_key_exists("checkUpdate",$c)){
+    if($c['checkUpdate']=="yes"){
+        checkUpdate();
+    }
+}else{
+    checkUpdate();
 }
 readDict();
 //UI MODE
@@ -173,7 +180,7 @@ function askForUpdate(){
         $loop = false;
         $key = ask("[?] 您是否需要自动更新?[Y/N]");
         if(strtolower($key)==='y'){
-            //download
+            doAutoUpdate();
         }elseif (strtolower($key)==='n'){
             output("[!] 已经取消更新，您稍后可以手动更新。");
             output("[*] 项目地址：https://github.com/Cansll/XiMaLaYa-GET/releases");
@@ -187,8 +194,8 @@ function doAutoUpdate(){
     if(downloadUpdate_Core()){
         if(downloadUpdate_Script()){
             output("[*] 更新下载完成，即将启动更新程序...");
-            sleep(1000);
-            system("@php32\php.exe xmlyget_Updater.php");
+            sleep(1);
+            system("@start php32\php.exe xmlyget_Updater.php");
             exit();
         }else{
             output("[x] 自动更新失败: 更新工具下载时出错。");

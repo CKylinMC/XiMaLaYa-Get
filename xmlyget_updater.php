@@ -25,7 +25,7 @@ $logo = " _____ _  __     _ _       __  __  _____
            |___/                         ";
 output($copyright."\n\n".$logo);
 
-sleep(1000);
+sleep(1);
 update();
 
 function update(){
@@ -35,7 +35,7 @@ function update(){
     $bak = dirname(__FILE__).DIRECTORY_SEPARATOR."xmlyget.php.bak";
     if(!file_exists($new)) {
         output("[x] 缺少文件，无法进行更新。");
-        sleep(1000);
+        sleep(1);
         exit();
     }
     output("[*] 正在备份当前程序文件...");
@@ -44,7 +44,8 @@ function update(){
         if(rename($new,$old)){
             output("[*] 更新成功...");
             @system("del /F /Q ".$updater);
-            @system("@run32.bat");
+            @system("del /F /Q ".$bak);
+            @system("@start run32.bat");
             sleep(1);
             exit();
         }else{
@@ -82,4 +83,8 @@ function ask($out)
 {
     output($out);
     return trim(fgets(STDIN));
+}
+function t($t){
+//    return $t;
+    return iconv("UTF-8","GBK",$t);
 }
