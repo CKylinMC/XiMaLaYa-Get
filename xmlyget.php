@@ -140,6 +140,131 @@ function ask($out)
     return trim(fgets(STDIN));
 }
 
+function checkUpdate(){
+    output("[*] 正在检查更新...");
+    try{
+        if($content = file_get_contents("https://github.com/Cansll/XiMaLaYa-Get/blob/master/msg.txt",false,stream_context_create(array(
+            'http' => array(
+                'method' => 'GET',
+                'timeout' => 5
+            )
+        )))){
+            $data = json_decode($content);
+            if($data['latestVersion']==VE){
+                output("[*] 当前为最新版本：".VE);
+            }else{
+                output("[!] 发现新版本：".$data['latestVersion']." !");
+                askForUpdate();
+            }
+            if($data['banner']){
+                output($data['banner']);
+            }
+        }else{
+            output("[x] 获取更新失败");
+        }
+    } catch (Exception $e) {
+        output("[x] 获取更新时出现问题：".$e->getMessage());
+        return;
+    }
+}
+
+function askForUpdate(){
+    do{
+        $loop = false;
+        $key = ask("[?] 您是否需要自动更新?[Y/N]");
+        if(strtolower($key)==='y'){
+            //download
+        }elseif (strtolower($key)==='n'){
+            output("[!] 已经取消更新，您稍后可以手动更新。");
+            output("[*] 项目地址：https://github.com/Cansll/XiMaLaYa-GET/releases");
+        }else{
+            $loop = true;
+        }
+    }while($loop);
+}
+
+function doAutoUpdate(){
+    if(downloadUpdate_Core()){
+        if(downloadUpdate_Script()){
+            output("[*] 更新下载完成，即将启动更新程序...");
+            sleep(1000);
+            system("@php32\php.exe xmlyget_Updater.php");
+            exit();
+        }else{
+            output("[x] 自动更新失败: 更新工具下载时出错。");
+            output("[*] 您可以尝试关闭程序后手动删除'xmlyget.php'并重命名'xmlyget_new.php'为'xmlyget.php'。");
+            output("[*] 若存在问题建议手动下载完整更新。");
+            output("[*] 项目地址：https://github.com/Cansll/XiMaLaYa-GET/releases");
+            ask("[?] 回车键退出");
+            exit();
+        }
+    }else{
+        output("[x] 自动更新失败: 文件下载时出错。");
+        output("[*] 建议您手动进行更新。");
+        output("[*] 项目地址：https://github.com/Cansll/XiMaLaYa-GET/releases");
+        ask("[?] 回车键退出");
+        exit();
+    }
+}
+
+function downloadUpdate_Core(){
+    $path = dirname(__FILE__) . DIRECTORY_SEPARATOR ;
+    $filepath = $path . "xmlyget_new.php";
+    $target = fopen("https://github.com/Cansll/XiMaLaYa-Get/raw/master/xmlyget.php", "rb");
+    $newfile = '';
+    if ($target) {
+        $newfile = fopen($filepath, "wb");
+        if ($newfile) {
+            output("[*] [1/2] 正在下载 xmlyget.php ...");
+            while (!feof($target)) {
+                fwrite($newfile, fread($target, 1024 * 8), 1024 * 8);
+            }
+            output("[*] [1/2] 文件传输完成...");
+        } else {
+            //fclose($newfile);
+            raw_output(t("[!] 文件写入时出错，无法打开本地文件，请检查权限.")."($filepath)");
+            fclose($target);
+            return false;
+        }
+    } else {
+        //fclose($target);
+        output("[!] 远程文件查找出错，无法下载，请检查网络.");
+        return false;
+    }
+    if ($target) fclose($target);
+    if ($newfile) fclose($newfile);
+    return true;
+}
+
+function downloadUpdate_Script(){
+    $path = dirname(__FILE__) . DIRECTORY_SEPARATOR ;
+    $filepath = $path . "xmlyget_Updater.php";
+    $target = fopen("https://github.com/Cansll/XiMaLaYa-Get/raw/master/xmlyget_updater.php", "rb");
+    $newfile = '';
+    if ($target) {
+        $newfile = fopen($filepath, "wb");
+        if ($newfile) {
+            output("[*] [2/2] 正在下载 xmlyget_updater.php ...");
+            while (!feof($target)) {
+                fwrite($newfile, fread($target, 1024 * 8), 1024 * 8);
+            }
+            output("[*] [2/2] 文件传输完成...");
+        } else {
+            //fclose($newfile);
+            raw_output(t("[!] 文件写入时出错，无法打开本地文件，请检查权限.")."($filepath)");
+            fclose($target);
+            return false;
+        }
+    } else {
+        //fclose($target);
+        output("[!] 远程文件查找出错，无法下载，请检查网络.");
+        return false;
+    }
+    if ($target) fclose($target);
+    if ($newfile) fclose($newfile);
+    return true;
+}
+
 function getTrack($info)
 {
     if (empty($info)) return false;
