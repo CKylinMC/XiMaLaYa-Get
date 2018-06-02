@@ -45,7 +45,7 @@ function update(){
             output("[*] 更新成功...");
             @system("del /F /Q ".$updater);
             @system("@run32.bat");
-            sleep(500);
+            sleep(1);
             exit();
         }else{
             output("[x] 程序文件添加失败，正在恢复备份...");
@@ -59,7 +59,7 @@ function update(){
     }else{
         output("[x] 备份时出错。更新失败。");
     }
-    sleep(5000);
+    sleep(5);
     exit();
 }
 
