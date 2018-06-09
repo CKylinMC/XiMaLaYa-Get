@@ -39,88 +39,14 @@ if(array_key_exists("cfgVersion",$c)){
 readDict();
 //UI MODE
 output("\n\n[*] 欢迎使用喜马拉雅FM音频下载工具！");
-while (true) {
-    output("\n\n>[ 新的下载任务 ]----------------------\n");
-    $res = ask("[?] 输入一个音频链接: ");
-    if (empty($res)) {
-        output("[!] 请输入一个链接！!");
-        continue;
-    }
-    if ($res == "exit") {
-        output("\n[!] 退出.");
-        break;
-    }
-    $urlinfos = parse_url($res);
-    $track = getTrack($urlinfos);
-    if ($track === false) continue;
-    output("\n[+] Track ID: $track \n[*] 正在获取信息...");
-    $api = "http://www.ximalaya.com/tracks/$track.json";
-//    $httpinfo;
-//    $res = http_get($api, $httpinfo);
-//    if ($httpinfo['response_code'] != "200") {
-//        output("HTTP " . $httpinfo['response_code'] . " ERROR. JSON data get failed.");
-//        continue;
-//    }
-    $r = cUrl($api);
-//    $r = json_decode($res);
-    if (empty($r)) {
-        output("[!] 解析数据时出错.");
-        continue;
-    }
-    if (!isset($r['res'])) {
-        output("[+] 已经定位音频:\n\n");
-        $downurl = $r['play_path'];
-        $duration = $r['duration'] / 60;
-        $title = t($r['title']);
-        $user = t($r['nickname']);
-        $realtime = t($r['formatted_created_at']);
-        $time = t($r['time_until_now']);
-        $album = t($r['album_title']);
-        $intro = t($r['intro']);
-        raw_output(t("上传用户:")." $user \n".t("音频长度: ")."$duration min \n".t("音频题目: ")."$title \n".t("所在专辑:")." $album \n".t("上传时间: ")."$time / $realtime \n".t("音频描述:")." $intro \n".t("音频链接:")." $downurl");
-
-//        $filename = str_replace(" ","","$user-$title-$time-$ran.m4a");
-//        $filename = "$user-$title-$album-$time-$ran.m4a";
-//        $filename = getFileName($r);
-        $infos = getCFG($r);
-        $filename = $infos['file'];
-        $down = $infos['api'];
-        raw_output(t("\n\n[*] 准备下载...")."($filename)");
-        $path = dirname(__FILE__) . DIRECTORY_SEPARATOR . "audios" . DIRECTORY_SEPARATOR;
-        $filepath = $path . $filename;
-        @mkdir($path);
-        raw_output(t("[+] 输出目录: ")."$path");
-        $target = fopen($down, "rb");
-        $newfile = '';
-        if ($target) {
-            $newfile = fopen($filepath, "wb");
-            if ($newfile) {
-                output("[*] 正在下载...");
-                while (!feof($target)) {
-                    fwrite($newfile, fread($target, 1024 * 8), 1024 * 8);
-                }
-                output("[*] 文件传输完成，正在进行最后的操作...");
-            } else {
-                //fclose($newfile);
-                raw_output(t("[!] 文件写入时出错，无法打开本地文件，请检查权限.")."($filepath)");
-                fclose($target);
-                continue;
-            }
-        } else {
-            //fclose($target);
-            output("[!] 远程文件查找出错，无法下载，请检查网络.($down)");
-            continue;
-        }
-        if ($target) fclose($target);
-        if ($newfile) fclose($newfile);
-        raw_output(t("\n\n[+] 文件已经成功下载到 ")."$filepath");
-        output("文件大小: ".getSizeT($filepath)."\n");
-        continue;
-    } else {
-        output("[!] 数据查询出错，检查输入的链接. ($res)");
-        continue;
-    }
+$ask = true;
+if(array_key_exists("autoDownloadAlbum",$c)){
+	if($c['autoDownloadAlbum']==true) $ask = false;
+}else{
+	output("[*] 专辑下载前将询问。若需要自动下载，请在 options.txt 中添加一行：\nautoDownloadAlbum=true");
 }
+loopDownloadAlbum($ask);
+//
 
 function output($out)
 {
@@ -240,6 +166,144 @@ function readDict(){
     return $dtdata;
 }
 
+function readAlbum(){
+    $albumlist = dirname(__FILE__).DIRECTORY_SEPARATOR."albumlist.txt";
+    if(!file_exists($albumlist)) {
+        fclose(fopen($albumlist,"w"));
+        output("[*] 订阅文件创建成功!");
+		return array();
+    }
+    $lines = file($albumlist);//str_replace(PHP_EOL,"",file($config));
+    $dtdata = array();
+    foreach($lines as $line){
+        if(empty($line)) continue;
+        $result = str_replace(PHP_EOL,"",$line);
+        //$dtdata[$result[0]] = $result[1];
+		array_push($dtdata,$result);
+    }
+    return $dtdata;
+}
+
+function loopDownloadAlbum($ask = true){
+	$albums = readAlbum();;
+	if($albums==array()){
+		output("[!] 没有发现订阅。请编辑 albumlist.txt 文件，一行一个专辑号。");
+		return;
+	}
+	foreach($albums as $album){
+		downloadLatestTrackFromAlbum($album,$ask);
+	}
+	output("[*] 所有订阅专辑已经下载完毕。");
+	return;
+}
+
+function downloadLatestTrackFromAlbum($album,$ask = true){
+	//http://www.ximalaya.com/revision/album?albumId=
+	$result = cUrl("http://www.ximalaya.com/revision/album?albumId=".$album);
+	if(empty($result)){
+		output("[x] 解析专辑 {$album} 时出现错误。(-1)");
+		return;
+	}
+	if(is_array($result)){
+		if($result['ret']!=0){
+			output("[x] 解析专辑 {$album} 时出现意外：".$result['msg']);
+			return;
+		}
+		output("[*] 已解析专辑：{$result['data']['mainInfo']['albumTitle']} - {$result['data']['anchorInfo']['anchorName']}");
+		//output("[*] 专辑最新为：{$result['data']['tracksInfo']['tracks'][0]['title']}");
+		//output("[*] 发布于 {$result['data']['tracksInfo']['tracks'][0]['createDateFormat']}");
+		if($ask){
+			if(!strtolower(ask("[?] 输入 y 回车下载，其他字母回车跳过："))=="y"){
+				output("[*] 已跳过。");
+				return;
+			}
+		}
+		output("[*] 正在启动下载...");
+		foreach($result['data']['tracksInfo']['tracks'] as $track){
+			output("[*] 正在下载 {$track['title']}");
+			$link = "https://www.ximalaya.com".$track['url'];
+			downloader($link);
+		}
+		return;
+	}else{
+		output("[x] 解析专辑 {$album} 时出现错误。(-2)");
+		return;
+	}
+}
+
+function downloader($res){
+    $urlinfos = parse_url($res);
+    $track = getTrack($urlinfos);
+    if ($track === false) return;
+    output("\n[+] Track ID: $track \n[*] 正在获取信息...");
+    $api = "http://www.ximalaya.com/tracks/$track.json";
+//    $httpinfo;
+//    $res = http_get($api, $httpinfo);
+//    if ($httpinfo['response_code'] != "200") {
+//        output("HTTP " . $httpinfo['response_code'] . " ERROR. JSON data get failed.");
+//        return;
+//    }
+    $r = cUrl($api);
+//    $r = json_decode($res);
+    if (empty($r)) {
+        output("[!] 解析数据时出错.");
+        return;
+    }
+    if (!isset($r['res'])) {
+        output("[+] 已经定位音频:\n\n");
+        $downurl = $r['play_path'];
+        $duration = $r['duration'] / 60;
+        $title = t($r['title']);
+        $user = t($r['nickname']);
+        $realtime = t($r['formatted_created_at']);
+        $time = t($r['time_until_now']);
+        $album = t($r['album_title']);
+        $intro = t($r['intro']);
+        raw_output(t("上传用户:")." $user \n".t("音频长度: ")."$duration min \n".t("音频题目: ")."$title \n".t("所在专辑:")." $album \n".t("上传时间: ")."$time / $realtime \n".t("音频描述:")." $intro \n".t("音频链接:")." $downurl");
+
+//        $filename = str_replace(" ","","$user-$title-$time-$ran.m4a");
+//        $filename = "$user-$title-$album-$time-$ran.m4a";
+//        $filename = getFileName($r);
+        $infos = getCFG($r);
+        $filename = $infos['file'];
+        $down = $infos['api'];
+        raw_output(t("\n\n[*] 准备下载...")."($filename)");
+        $path = dirname(__FILE__) . DIRECTORY_SEPARATOR . "audios" . DIRECTORY_SEPARATOR;
+        $filepath = $path . $filename;
+        @mkdir($path);
+        raw_output(t("[+] 输出目录: ")."$path");
+        $target = fopen($down, "rb");
+        $newfile = '';
+        if ($target) {
+            $newfile = fopen($filepath, "wb");
+            if ($newfile) {
+                output("[*] 正在下载...");
+                while (!feof($target)) {
+                    fwrite($newfile, fread($target, 1024 * 8), 1024 * 8);
+                }
+                output("[*] 文件传输完成，正在进行最后的操作...");
+            } else {
+                //fclose($newfile);
+                raw_output(t("[!] 文件写入时出错，无法打开本地文件，请检查权限.")."($filepath)");
+                fclose($target);
+                return;
+            }
+        } else {
+            //fclose($target);
+            output("[!] 远程文件查找出错，无法下载，请检查网络.($down)");
+            return;
+        }
+        if ($target) fclose($target);
+        if ($newfile) fclose($newfile);
+        raw_output(t("\n\n[+] 文件已经成功下载到 ")."$filepath");
+        output("文件大小: ".getSizeT($filepath)."\n");
+        return;
+    } else {
+        output("[!] 数据查询出错，检查输入的链接. ($res)");
+        return;
+    }
+}
+
 function readConfig(){
     $config = dirname(__FILE__).DIRECTORY_SEPARATOR."options.txt";
     if(!file_exists($config)) {
@@ -315,12 +379,4 @@ function getCFG($r){
 }
 
 
-//$down = $r['play_path'];
-//$duration = $r['duration'] / 60;
-//$title = t($r['title']);
-//$user = t($r['nickname']);
-//$realtime = t($r['formatted_created_at']);
-//$time = t($r['time_until_now']);
-//$album = t($r['album_title']);
-//$intro = t($r['intro']);
 output("\n\n> 脚本结束运行.\n\n");
